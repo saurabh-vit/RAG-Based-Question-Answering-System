@@ -1,0 +1,26 @@
+services:
+  rag-api:
+    build:
+      context: .
+      dockerfile: rag-system/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=rag-system
+      - ENV=prod
+      - LOG_LEVEL=INFO
+      - DATA_DIR=/app/data
+      - VECTOR_STORE_DIR=/app/vector_store
+      - EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+      - TOP_K=4
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=gpt-4.1-mini
+      - RATE_LIMIT_UPLOAD=5/minute
+      - RATE_LIMIT_ASK=10/minute
+      - CHUNK_SIZE_TOKENS=400
+      - CHUNK_OVERLAP_TOKENS=80
+      - CACHE_TTL_SECONDS=120
+    volumes:
+      - ./rag-system/data:/app/data
+      - ./rag-system/vector_store:/app/vector_store
+
