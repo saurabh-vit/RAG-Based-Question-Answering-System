@@ -1,335 +1,294 @@
-# RAG-Based Question Answering System
+# 🚀 RAG-Based Question Answering System
 
-## 1. Project Title
+## 📌 Overview
 
-**RAG-Based Question Answering System**
+This project implements a **Retrieval-Augmented Generation (RAG)** system that allows users to upload documents and ask questions based on their content.
 
----
-
-## 2. Overview
-
-### What is RAG?
-**Retrieval-Augmented Generation (RAG)** is a system design pattern that combines:
-- **Retrieval**: find the most relevant parts of your documents (via embeddings + vector search)
-- **Generation**: ask a language model (LLM) to answer **using only** the retrieved context
-
-### What problem does this project solve?
-LLMs are powerful but can hallucinate. This project makes answers **grounded in your uploaded documents** by:
-- turning documents into searchable embeddings
-- retrieving the best-matching chunks at query time
-- generating a short factual answer from those chunks using **Google Gemini**
-
-### Real-world use cases
-- Internal knowledge base (HR policies, onboarding docs, engineering runbooks)
-- Research assistant for PDFs (reports, papers, proposals)
-- Customer support FAQ over product manuals and terms
+Unlike traditional LLMs, which may hallucinate, this system ensures **grounded and factual answers** by retrieving relevant document chunks before generating responses.
 
 ---
 
-## 3. Features
+## 🎯 Objective
 
-- **Document upload**: `POST /upload` supports **PDF** and **TXT**
-- **Asynchronous ingestion**: uses FastAPI **BackgroundTasks** (API stays responsive)
-- **Chunking + embeddings**: token-aware chunking and local embeddings via **SentenceTransformers**
-- **FAISS vector search**: fast similarity search for top relevant chunks
-- **Gemini-based answer generation**: uses retrieved context to produce a short answer (not raw chunks)
-- **Source attribution**: returns sources with **similarity scores** and chunk IDs
-- **Latency tracking**: returns `latency_ms` in API response and `X-Latency-Ms` header
+Build an applied AI system that combines:
+
+* 📄 Document Processing
+* 🔍 Semantic Search (Embeddings + FAISS)
+* 🤖 LLM-based Answer Generation (Google Gemini)
 
 ---
 
-## 4. Tech Stack (with justification)
+## ⚙️ Key Features
 
-- **FastAPI**
-  - Clean async-friendly API framework with auto OpenAPI docs (`/docs`)
-  - Works well with background ingestion pipelines
-- **SentenceTransformers**
-  - High-quality **local** embeddings (no dependency on remote embedding APIs)
-  - Good balance of performance and accuracy for document retrieval
-- **FAISS**
-  - Industry-standard vector similarity search library
-  - Local-first and fast for small/medium datasets
-- **Google Gemini API**
-  - Generates concise answers from retrieved context
-  - Separates retrieval from generation for grounded responses
-- **Pydantic**
-  - Strong request/response validation and clear API contracts
-- **python-dotenv**
-  - Loads `.env` for local development (API keys and settings without hardcoding secrets)
+* ✅ Upload documents (**PDF & TXT**)
+* ✅ Asynchronous document ingestion (FastAPI BackgroundTasks)
+* ✅ Token-based chunking with overlap
+* ✅ Local embeddings using SentenceTransformers
+* ✅ Fast similarity search using FAISS
+* ✅ Context-aware answer generation using Gemini API
+* ✅ Source attribution with similarity scores
+* ✅ Latency tracking for performance analysis
+* ✅ Request validation using Pydantic
+* ✅ Rate limiting for API protection
 
 ---
 
-## 5. System Architecture
+## 🧠 What is RAG?
+
+**Retrieval-Augmented Generation (RAG)** works in two steps:
+
+1. **Retrieve** → Find relevant document chunks using embeddings
+2. **Generate** → Use an LLM to answer using ONLY retrieved context
+
+👉 This reduces hallucination and improves accuracy.
+
+---
+
+## 🏗️ System Architecture
 
 ```mermaid
 flowchart LR
-  U[User/Client] -->|POST /upload| API[FastAPI]
-  API -->|Save file| FS[(data/)]
-  API -->|BackgroundTasks| ING[Ingestion Pipeline]
-  ING --> EX[Text Extraction\nPDF/TXT]
-  EX --> CH[Chunking\n400 tokens, overlap 80]
-  CH --> EMB[Embeddings\nSentenceTransformers]
-  EMB --> VS[(FAISS Vector Store)]
+  User -->|Upload| API
+  API -->|Store| Data
+  API -->|Background Task| Ingestion
 
-  U -->|POST /ask| API
-  API --> QEMB[Query Embedding]
-  QEMB --> VS
-  VS --> RET[Top-K Chunks\n+ similarity scores]
-  RET --> LLM[Gemini Generate\n(Grounded Answer)]
-  LLM --> API
-  API --> U
+  Ingestion --> Extraction
+  Extraction --> Chunking
+  Chunking --> Embeddings
+  Embeddings --> FAISS
+
+  User -->|Ask Question| API
+  API --> QueryEmbedding
+  QueryEmbedding --> FAISS
+  FAISS --> Retrieval
+  Retrieval --> Gemini
+  Gemini --> API
+  API --> User
 ```
 
 ---
 
-## 6. Project Structure
+## 📂 Project Structure
 
-```text
-rag-system/
-├─ app/
-│  ├─ main.py                  # FastAPI app bootstrap + middleware
-│  ├─ routes/                  # HTTP layer (request/response)
-│  │  ├─ upload.py             # POST /upload
-│  │  └─ query.py              # POST /ask
-│  ├─ services/                # Core business logic
-│  │  ├─ ingestion_service.py  # Extract → chunk → embed → store
-│  │  ├─ embedding_service.py  # SentenceTransformer wrapper
-│  │  ├─ vector_store.py       # FAISS index + metadata store
-│  │  ├─ llm_service.py        # Gemini answer generation
-│  │  └─ container.py          # Dependency wiring
-│  ├─ models/                  # Pydantic schemas
-│  └─ utils/                   # Shared utilities (chunker, settings, logging)
-├─ data/                       # Uploaded documents (per document_id)
-├─ vector_store/               # Local FAISS index + metadata
-├─ requirements.txt
-├─ .env.example
-└─ README.md
+```bash
+.
+├── app/
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   ├── models/
+│   └── main.py
+├── data/
+├── vector_store/
+├── requirements.txt
+├── .env.example
+├── README.md
 ```
-
-**Design note**: routes are thin. Most logic lives in services/utils to keep the code maintainable and testable.
 
 ---
 
-## 7. Setup Instructions
+## 🛠️ Tech Stack (Why These?)
 
-### 1) Clone the repository
+| Technology           | Purpose                         |
+| -------------------- | ------------------------------- |
+| FastAPI              | High-performance backend API    |
+| SentenceTransformers | Local embedding generation      |
+| FAISS                | Fast vector similarity search   |
+| Google Gemini API    | Answer generation               |
+| Pydantic             | Request validation              |
+| python-dotenv        | Environment variable management |
 
-```bash
-git clone <your-repo-url>
-cd <your-repo>
-```
+---
 
-### 2) Create and activate a virtual environment
+## ⚡ Setup Instructions
 
-```bash
-python -m venv .venv
-```
-
-Windows PowerShell:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-### 3) Install dependencies
+### 1. Clone Repo
 
 ```bash
-pip install -r rag-system/requirements.txt
+git clone https://github.com/saurabh-vit/RAG-Based-Question-Answering-System.git
+cd RAG-Based-Question-Answering-System
 ```
 
-### 4) Create `.env`
-
-Copy `.env.example` → `.env`:
+### 2. Create Virtual Environment
 
 ```bash
-copy rag-system\.env.example rag-system\.env
+python -m venv venv
+venv\Scripts\activate   # Windows
 ```
 
-### 5) Add your Google AI Studio key
+### 3. Install Dependencies
 
-Edit `rag-system/.env`:
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Setup Environment Variables
+
+Create `.env` file:
 
 ```env
-GOOGLE_API_KEY=your_key_here
+GOOGLE_API_KEY=your_api_key_here
 ```
-
-### 6) Run the server
-
-From the repo root:
-
-```bash
-python -m uvicorn app.main:app --app-dir rag-system --host 127.0.0.1 --port 8000
-```
-
-OpenAPI docs:
-- `http://127.0.0.1:8000/docs`
 
 ---
 
-## 8. API Endpoints
-
-### POST `/upload`
-
-- **Input**: multipart form-data file (`.pdf` or `.txt`)
-- **Output**: `document_id` (used to query and filter retrieval)
-
-Example:
+### 5. Run Server
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/upload" ^
-  -F "file=@C:\path\to\document.txt"
+python -m uvicorn app.main:app --reload --port 9000
 ```
 
-Response:
+👉 Open: http://127.0.0.1:9000/docs
+
+---
+
+## 🔌 API Endpoints
+
+### 📄 Upload Document
+
+```http
+POST /upload
+```
+
+**Input:** PDF/TXT file
+**Output:**
 
 ```json
 {
-  "document_id": "e7a3...c21",
+  "document_id": "abc123",
   "status": "accepted"
 }
 ```
 
-### POST `/ask`
+---
 
-- **Input**:
-  - `question` (string)
-  - `document_ids` (list of document IDs; optional but recommended)
-  - `top_k` (int; optional, min 3 enforced)
-- **Output**:
-  - `answer` (Gemini-generated)
-  - `sources` (retrieved chunks with similarity score)
-  - `latency_ms`
+### ❓ Ask Question
 
-Request:
+```http
+POST /ask
+```
+
+**Request:**
 
 ```json
 {
   "question": "How many recruitment agencies are listed?",
-  "document_ids": ["REAL_DOCUMENT_ID"],
+  "document_ids": ["abc123"],
   "top_k": 3
 }
 ```
 
-Response shape:
+**Response:**
 
 ```json
 {
-  "answer": "50 recruitment agencies are listed in the document.",
-  "sources": [
-    {
-      "document_id": "REAL_DOCUMENT_ID",
-      "chunk_id": "REAL_DOCUMENT_ID_0",
-      "score": 0.77,
-      "text": "…",
-      "highlighted_text": "…"
-    }
-  ],
-  "cached": false,
-  "latency_ms": 42.1
+  "answer": "50 recruitment agencies are listed.",
+  "sources": [...],
+  "latency_ms": 45
 }
 ```
 
 ---
 
-## 9. Example Usage (realistic end-to-end)
+## 🔍 Chunking Strategy (MANDATORY)
 
-1) Upload a TXT:
+* Chunk Size: **400 tokens**
+* Overlap: **80 tokens**
 
-```bash
-curl -X POST "http://127.0.0.1:8000/upload" ^
-  -F "file=@C:\docs\agencies.txt"
-```
+### Why?
 
-2) Ask a question:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/ask" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"question\":\"How many recruitment agencies are listed?\",\"document_ids\":[\"<document_id>\"],\"top_k\":3}"
-```
+* Captures full context (paragraph-level meaning)
+* Prevents information loss at chunk boundaries
+* Improves retrieval accuracy
 
 ---
 
-## 10. Chunking Strategy (MANDATORY)
+## ❌ Retrieval Failure Case (MANDATORY)
 
-This project uses **token-based chunking**:
-- **Chunk size**: **400 tokens**
-- **Overlap**: **80 tokens**
+### Problem:
 
-### Why this improves retrieval quality
-- **Token-sized chunks** map better to LLM context usage than character splitting.
-- **400 tokens** usually captures a full paragraph + local definitions.
-- **Overlap (80 tokens)** reduces boundary loss (important facts split across chunk edges).
+Query: *“How many agencies are listed?”*
 
-Trade-off:
-- More overlap ⇒ slightly more storage + embeddings, but improved recall.
+### Issue:
 
----
+System retrieves wrong section (e.g., marketing instead of recruitment agencies)
 
-## 11. Retrieval Failure Case (MANDATORY)
+### Reason:
 
-### Example failure
-Question: **“How many agencies are listed?”**
+* Ambiguous query
+* Similar terms across sections
 
-If the document contains multiple sections with “agency” (e.g., marketing agencies, recruitment agencies, travel agencies),
-retrieval may pull a chunk from the wrong section.
+### Solution:
 
-### Why it failed
-- Query is **too broad** (weak intent signal)
-- Similar terms exist across unrelated sections
-
-### How to improve
-- Add **hybrid retrieval** (BM25 + embeddings)
-- Add **re-ranking** (cross-encoder)
-- Add **metadata** (section titles, headings) and include them in chunks
+* Add metadata (headings)
+* Hybrid search (BM25 + embeddings)
+* Re-ranking model
 
 ---
 
-## 12. Metrics Tracked (MANDATORY)
+## 📊 Metrics Tracked (MANDATORY)
 
-- **Latency**
-  - Returned as `latency_ms` and `X-Latency-Ms`
-  - Helps detect slow embedding/model calls and measure performance
-- **Similarity score**
-  - Returned per source chunk (`score`)
-  - Helps debug retrieval quality and tune chunking/top_k
+### 1. Latency
 
-Why these matter:
-- In production RAG, performance and retrieval quality determine user trust and cost.
+* Measured in `latency_ms`
+* Helps optimize performance
 
----
+### 2. Similarity Score
 
-## 13. Limitations
-
-- **LLM dependency**: answer generation requires a valid Google AI Studio key and available Gemini models.
-- **Retrieval mismatch**: broad questions can retrieve the wrong section.
-- **Latency variance**: first-run downloads (embedding model) and network calls (Gemini) can spike response time.
+* Indicates relevance of retrieved chunks
+* Helps debug retrieval quality
 
 ---
 
-## 14. Future Improvements
+## ⚠️ Limitations
 
-- Better ranking:
-  - hybrid retrieval (BM25 + embeddings)
-  - re-ranking model
-- Caching:
-  - cache embeddings for repeated queries
-  - cache Gemini answers for repeated questions
-- UI:
-  - improve Streamlit UI and add document management
-- Multi-document reasoning:
-  - stronger cross-document retrieval and summarization
+* Depends on external Gemini API
+* Retrieval errors for ambiguous queries
+* Latency varies based on API/network
 
 ---
 
-## 15. Conclusion
+## 🚀 Future Improvements
 
-This project is a **production-style RAG backend** that supports:
-- document upload and asynchronous ingestion
-- token-aware chunking and local embeddings
-- FAISS similarity search with source attribution
-- **Gemini-generated grounded answers**
-- latency and similarity observability for debugging and tuning
+* Hybrid search (BM25 + FAISS)
+* Re-ranking models
+* Response caching
+* Better UI (Streamlit enhancement)
+* Multi-document reasoning
 
-# RAG-Based-Question-Answering-System
-# RAG-Based-Question-Answering-System
+---
+
+## 🏁 Conclusion
+
+This project demonstrates a **production-level RAG system** with:
+
+* End-to-end document processing pipeline
+* Efficient retrieval using FAISS
+* Grounded answer generation using Gemini
+* Performance tracking and validation
+
+---
+
+## 📎 Deliverables
+
+* ✅ GitHub Repository
+* ⏳ Architecture Diagram
+* ⏳ Demo Video
+
+---
+
+## 👨‍💻 Author
+
+**Saurabh Raj**
+
+---
+
+## ⭐ Final Note
+
+This system showcases real-world AI system design including:
+
+> Upload → Chunk → Embed → Retrieve → Generate
+
+👉 A complete **end-to-end RAG pipeline**
+
+---
