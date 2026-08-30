@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import os
 from typing import Iterable
 
 import numpy as np
@@ -29,7 +30,8 @@ class EmbeddingService:
             with self._lock:
                 if self._model is None:
                     try:
-                        self._model = SentenceTransformer(self._model_name)
+                        local_only = os.getenv("HF_LOCAL_ONLY", "false").lower() in {"1", "true", "yes"}
+                        self._model = SentenceTransformer(self._model_name, local_files_only=local_only)
                     except Exception as e:
                         raise EmbeddingModelLoadError(
                             "Failed to load embedding model. "

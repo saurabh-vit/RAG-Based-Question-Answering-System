@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+import queue
+import threading
 from typing import Iterable
 
 from dotenv import load_dotenv
@@ -61,9 +63,31 @@ def _pick_supported_model_name() -> str:
 
 def _get_model():
     _configure_gemini()
-    model_name = _pick_supported_model_name()
+    # Model discovery performs a network request and can hang when outbound
+    # access is blocked. Use the configured preferred model directly.
+    model_name = PREFERRED_MODEL_NAME
     log.info("gemini_model_selected", extra={"model": model_name})
     return genai.GenerativeModel(model_name)  # type: ignore[attr-defined]
+
+
+def _generate_with_timeout(model, prompt: str, timeout_seconds: float = 10.0) -> str:
+    result: queue.Queue[tuple[str, object]] = queue.Queue(maxsize=1)
+
+    def worker() -> None:
+        try:
+            response = model.generate_content(prompt)  # type: ignore[no-untyped-call]
+            result.put(("ok", (response.text or "").strip()))
+        except Exception as exc:
+            result.put(("error", exc))
+
+    threading.Thread(target=worker, daemon=True).start()
+    try:
+        status, value = result.get(timeout=timeout_seconds)
+    except queue.Empty as exc:
+        raise TimeoutError(f"Gemini request timed out after {timeout_seconds:.0f} seconds") from exc
+    if status == "error":
+        raise value  # type: ignore[misc]
+    return str(value)
 
 
 def build_context(chunks: Iterable[str], *, max_chars: int = 12000) -> str:
@@ -108,12 +132,16 @@ Give a short, clear, and factual answer.
 """
 
         model = _get_model()
-        response = model.generate_content(prompt)  # type: ignore[no-untyped-call]
-        return (response.text or "").strip()
+        return _generate_with_timeout(model, prompt)
 
     except Exception as e:
         log.exception("gemini_generate_failed", extra={"error": str(e)})
-        return f"Error generating answer: {str(e)}"
+        # Keep local/offline use functional when the Gemini endpoint is blocked
+        # or unavailable. Retrieval has already produced grounded context.
+        excerpt = context.strip()
+        if len(excerpt) > 1200:
+            excerpt = excerpt[:1200].rsplit(" ", 1)[0] + "..."
+        return "Gemini is unavailable, so here are the relevant document excerpts:\n\n" + excerpt
 
 
 class LLMService:

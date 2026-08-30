@@ -5,7 +5,19 @@ import requests
 import streamlit as st
 
 
-API_BASE = os.environ.get("RAG_API_BASE", "http://localhost:8000")
+API_BASE = os.environ.get("RAG_API_BASE", "http://127.0.0.1:8000").rstrip("/")
+
+
+def post_to_api(path: str, **kwargs):
+    """Call the API and show a useful message if the backend is offline."""
+    try:
+        return requests.post(f"{API_BASE}{path}", **kwargs)
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        st.error(
+            f"The RAG API did not respond at {API_BASE}. "
+            "Ensure the FastAPI server is running and check its terminal for errors."
+        )
+        return None
 
 st.set_page_config(page_title="RAG System", layout="wide")
 st.title("RAG Question Answering (Local FAISS + SentenceTransformers)")
@@ -16,8 +28,12 @@ with st.sidebar:
     if up is not None:
         if st.button("Upload & ingest"):
             files = {"file": (up.name, up.getvalue())}
-            r = requests.post(f"{API_BASE}/upload", files=files, timeout=60)
-            st.write(r.status_code, r.json())
+            r = post_to_api("/upload", files=files, timeout=60)
+            if r is not None:
+                if r.ok:
+                    st.write(r.status_code, r.json())
+                else:
+                    st.error(f"Upload failed ({r.status_code}): {r.text}")
 
 st.subheader("Ask")
 question = st.text_input("Question", placeholder="Ask something grounded in your uploaded documents…")
@@ -28,7 +44,12 @@ if st.button("Ask"):
     if doc_ids.strip():
         payload["document_ids"] = [d.strip() for d in doc_ids.split(",") if d.strip()]
     t0 = time.time()
-    r = requests.post(f"{API_BASE}/ask", json=payload, timeout=120)
+    r = post_to_api("/ask", json=payload, timeout=120)
+    if r is None:
+        st.stop()
+    if not r.ok:
+        st.error(f"Question failed ({r.status_code}): {r.text}")
+        st.stop()
     dt = (time.time() - t0) * 1000
     st.caption(f"HTTP {r.status_code} • {dt:.0f} ms")
     data = r.json()

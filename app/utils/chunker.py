@@ -35,8 +35,25 @@ def chunk_text_tokenwise(
       retrieving irrelevant text around the answer.
     """
 
-    enc = tiktoken.get_encoding(encoding_name)
-    tokens = enc.encode(text)
+    try:
+        enc = tiktoken.get_encoding(encoding_name)
+        tokens = enc.encode(text)
+    except Exception:
+        # tiktoken may need to download its vocabulary on first use. Keep local
+        # ingestion usable when internet access is unavailable.
+        words = text.split()
+
+        class LocalEncoding:
+            @staticmethod
+            def encode(value: str) -> list[str]:
+                return value.split()
+
+            @staticmethod
+            def decode(value: list[str]) -> str:
+                return " ".join(value)
+
+        enc = LocalEncoding()
+        tokens = words
 
     if chunk_size_tokens <= 0:
         raise ValueError("chunk_size_tokens must be > 0")
